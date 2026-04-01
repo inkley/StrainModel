@@ -105,12 +105,6 @@ p.b2 = 1.3;        % (-), quadratic strain-dependent stiffening coefficient
 % This allows the material-informed model to be tuned without changing E or t
 p.k_cm = 0.0075;   % (-), dimensionless scaling factor
 
-fprintf('Compliance model: %s\n', p.complianceModel);
-fprintf('Coupling term enabled: %d\n', p.useCouplingTerm);
-fprintf('Nominal cavity volume per side: %.3e m^3\n', p.V00);
-fprintf('Membrane thickness: %.3e m\n', p.t_mem);
-fprintf('Membrane modulus: %.3e Pa\n\n', p.E_mem);
-
 %% -----------------------------
 % Optional strain-dependent cavity volume reduction
 % ------------------------------
@@ -119,13 +113,18 @@ p.alphaV = 0.06;   % (-), fractional reduction coefficient: V0 = V00*(1 - alphaV
 %% -----------------------------
 % Interface coupling model
 % ------------------------------
-% eta_cpl represents strain-dependent pressure-coupling efficiency of the
-% stretched interface. The intent is to capture the idea that moderate
-% pre-strain can improve pressure transmission, while excessive pre-strain
-% leads to tapering of that benefit.
-p.useCouplingTerm = true;   % enable/disable strain-dependent coupling term
-p.A_cpl           = 0.39;   % (-), peak coupling enhancement above unity
-p.eps_peak_cpl    = 0.18;   % (-), strain at which coupling term peaks
+p.useCouplingTerm = true;
+p.A_cpl           = 0.39;
+p.eps_peak_cpl    = 0.18;
+
+%% -----------------------------
+% Print configuration summary
+% ------------------------------
+fprintf('Compliance model: %s\n', p.complianceModel);
+fprintf('Coupling term enabled: %s\n', string(p.useCouplingTerm));
+fprintf('Nominal cavity volume per side: %.3e m^3\n', p.V00);
+fprintf('Membrane thickness: %.3e m\n', p.t_mem);
+fprintf('Membrane modulus: %.3e Pa\n\n', p.E_mem);
 
 %% -----------------------------
 % Numerical settings

@@ -12,13 +12,13 @@ S_norm(eps) = T_cav,norm(eps) * eta_cpl(eps)
 
 where:
 
-- `T_cav,norm(eps)` captures normalized cavity/compressibility transmission
-- `eta_cpl(eps)` captures strain-dependent interface coupling efficiency
+- `T_cav,norm(eps)` captures normalized cavity/compressibility transmission  
+- `eta_cpl(eps)` captures strain-dependent interface coupling efficiency  
 
 The physical interpretation is:
 
-- `T_cav,norm(eps)` represents the cavity-side response associated with trapped-air compression, cavity volume, and effective interface compliance
-- `eta_cpl(eps)` represents improved pressure transmission at moderate pre-strain, followed by tapering as interface stiffening becomes dominant
+- `T_cav,norm(eps)` represents the cavity-side response associated with trapped-air compression, cavity volume, and effective interface compliance  
+- `eta_cpl(eps)` represents improved pressure transmission at moderate pre-strain, followed by tapering as interface stiffening becomes dominant  
 
 This formulation was adopted to better reflect the observed experimental trend: sensitivity increases at moderate membrane strain, peaks, and then decreases at higher strain.
 
@@ -36,9 +36,9 @@ The model consists of two coupled components:
 
 The cavity-side term is evaluated using a trapped-air cavity model based on isothermal ideal gas compression. Each sensing side is treated as a compressible cavity whose effective response depends on:
 
-- nominal cavity volume
-- strain-dependent cavity volume reduction
-- strain-dependent effective interface compliance
+- nominal cavity volume  
+- strain-dependent cavity volume reduction  
+- strain-dependent effective interface compliance  
 
 This term is reported as:
 
@@ -54,9 +54,9 @@ eta_cpl(eps)
 
 and is intended to capture the idea that:
 
-- at low pre-strain, pressure transmission is inefficient
-- at moderate pre-strain, coupling improves
-- at high pre-strain, increased stiffness reduces the benefit
+- at low pre-strain, pressure transmission is inefficient  
+- at moderate pre-strain, coupling improves  
+- at high pre-strain, increased stiffness reduces the benefit  
 
 This term provides a physically interpretable way to model the experimentally observed rise-then-taper sensitivity trend.
 
@@ -65,17 +65,19 @@ This term provides a physically interpretable way to model the experimentally ob
 The script supports two compliance model options:
 
 ### `lumped`
+
 A phenomenological strain-dependent effective compliance model:
 
-- useful for simplified tuning
-- represents membrane stiffness, thickness, geometry, and tensioning in a lumped way
+- useful for simplified tuning  
+- represents membrane stiffness, thickness, geometry, and tensioning in a lumped way  
 
 ### `material`
+
 A material-informed compliance surrogate using:
 
-- membrane thickness
-- effective elastic modulus
-- effective membrane span
+- membrane thickness  
+- effective elastic modulus  
+- effective membrane span  
 
 This option improves physical traceability while still remaining reduced-order in nature.
 
@@ -83,31 +85,58 @@ This option improves physical traceability while still remaining reduced-order i
 
 The current script uses:
 
-- **Interface material:** hygienic latex
-- **Membrane thickness:** 0.020 in
-- **Nominal effective modulus:** 1.2e6 Pa
-- **Working fluid:** trapped air
-- **Cavity model:** isothermal ideal gas compression
-- **Cavity volume:** estimated from a cylindrical + spherical-cap geometry per sensing side
+- **Interface material:** hygienic latex  
+- **Membrane thickness:** 0.020 in  
+- **Nominal effective modulus:** 1.2e6 Pa  
+- **Working fluid:** trapped air  
+- **Cavity model:** isothermal ideal gas compression  
+- **Cavity volume:** estimated from a cylindrical + spherical-cap geometry per sensing side  
 
 ## Files
 
-- `sensor_interface_numerical_model_v1.m`  
+- `StrainModel.m`  
   Main MATLAB script implementing the reduced-order model, parameter definitions, cavity-pressure solver, summary printouts, and plotting routines.
 
 ## Experimental Reference Points
 
 The script includes experimental summary values for:
 
-- engineering strain
-- normalized sensitivity
-- approximate error bars
+- engineering strain  
+- normalized sensitivity  
+- approximate error bars  
 
 These are used for direct visual comparison between the reduced-order model and calibration-derived sensitivity data.
 
-## Usage
+## Getting Started
 
 Open MATLAB in this repository folder and run:
 
 ```matlab
-sensor_interface_numerical_model_v1
+StrainModel
+```
+
+The script will:
+
+1. Define experimental strain and sensitivity data  
+2. Evaluate the cavity transmission term and coupling efficiency across a continuous strain range  
+3. Compute normalized sensitivity using  
+   `S_norm = T_cav,norm * eta_cpl`  
+4. Print a comparison table between experimental and modeled values  
+5. Output RMSE and weighted RMSE  
+6. Generate publication-style and diagnostic plots  
+
+## Notes
+
+- The present model is a reduced-order interpretive tool, not a full membrane mechanics solution  
+- The cavity-pressure solution assumes an isothermal air-filled cavity (ideal gas)  
+- The decomposition  
+  `S_norm = T_cav,norm * eta_cpl`  
+  separates:
+  - cavity/compressibility effects  
+  - interface coupling effects  
+
+## Author
+
+Tyler J. Inkley  
+Department of Ocean and Resources Engineering  
+University of Hawaiʻi at Mānoa  
