@@ -6,134 +6,156 @@ Reduced-order MATLAB model for strain-dependent pressure transmission in a membr
 
 This repository contains a reduced-order numerical model used to interpret experimentally observed strain-dependent pressure sensitivity in a hydrodynamic sensor module for Autonomous Underwater Vehicles (AUVs).
 
-The current model represents normalized sensitivity as:
+The current implementation uses an iterative force-balance formulation in which strain-dependent interface geometry and plate stiffness modify the pressure transmission of an air-filled sensing cavity. Rather than imposing a separate empirical coupling curve, the model computes normalized sensitivity directly from the cavity/interface response.
 
-S_norm(eps) = T_cav,norm(eps) * eta_cpl(eps)
+The model output is reported as:
 
-where:
+S_norm(eps) = T_cav,norm(eps)
 
-- `T_cav,norm(eps)` captures normalized cavity/compressibility transmission  
-- `eta_cpl(eps)` captures strain-dependent interface coupling efficiency  
+where `T_cav,norm(eps)` is the normalized cavity/interface transmission response, evaluated relative to its zero-strain value.
 
-The physical interpretation is:
+In the present formulation, strain affects the model through:
 
-- `T_cav,norm(eps)` represents the cavity-side response associated with trapped-air compression, cavity volume, and effective interface compliance  
-- `eta_cpl(eps)` represents improved pressure transmission at moderate pre-strain, followed by tapering as interface stiffening becomes dominant  
+- installed interface diameter  
+- effective plate radius  
+- strain-dependent effective modulus  
+- plate bending stiffness  
+- embedded geometry coupling through `beta_geom`  
 
-This formulation was adopted to better reflect the observed experimental trend: sensitivity increases at moderate membrane strain, peaks, and then decreases at higher strain.
+This produces a smooth, monotonic amplification trend that can be compared directly against experimental calibration data.
 
-## Example Output
+## Physical Interpretation
 
-![Model comparison](figures/model_result.png)
+The model treats each sensing side as an air-filled cavity coupled to a strained membrane/plate-like interface. A small applied surface pressure differential is transmitted through the interface, while the internal cavity pressure evolves iteratively according to:
 
-Example output from the reduced-order model showing normalized sensitivity as a function of engineering strain, compared with experimental calibration data.
+- trapped-air compression  
+- strain-dependent interface geometry  
+- strain-dependent plate stiffness  
+- a capped and relaxed net force-balance update  
 
-## Model Structure
+The model is intended as a reduced-order interpretive tool that preserves physical traceability without attempting to fully resolve nonlinear membrane mechanics.
 
-The model consists of two coupled components:
+## Current Model Formulation
 
-### 1. Cavity Transmission Term
+For a given engineering strain `eps`, the model:
 
-The cavity-side term is evaluated using a trapped-air cavity model based on isothermal ideal gas compression. Each sensing side is treated as a compressible cavity whose effective response depends on:
+1. Interpolates the installed interface diameter from measured strain states  
+2. Computes effective plate radius `a_plate(eps)`  
+3. Computes effective modulus using  
+   `E_eff(eps) = E_plate0 * (1 + c1*eps + c2*eps^2)`  
+4. Computes plate bending stiffness  
+   `D_plate(eps) = E_eff * t^3 / (12 * (1 - nu^2))`  
+5. Computes a geometry-based gain term from the forced loading area relative to the installed interface area  
+6. Blends that gain through the geometry coupling parameter `beta_geom`  
+7. Solves cavity pressure iteratively using a relaxed and capped net-load update  
+8. Computes normalized transmission from symmetric positive and negative pressure perturbations  
 
-- nominal cavity volume  
-- strain-dependent cavity volume reduction  
-- strain-dependent effective interface compliance  
+## Key Model Parameters
 
-This term is reported as:
+Important model parameters include:
 
-T_cav,norm(eps)
+- `beta_geom`  
+  Blending factor for embedded geometry amplification
 
-which is normalized by its zero-strain value.
+- `c1`, `c2`  
+  Coefficients controlling the strain-dependent effective modulus
 
-### 2. Interface Coupling Term
+- `q_cap`  
+  Cap on net plate load during iterative updates
 
-The interface coupling term is represented as:
+- `dV_cap_fraction`  
+  Cap on cavity volume change relative to nominal cavity volume
 
-eta_cpl(eps)
+- `relax`, `relax_q`  
+  Relaxation factors used to improve solver stability
 
-and is intended to capture the idea that:
-
-- at low pre-strain, pressure transmission is inefficient  
-- at moderate pre-strain, coupling improves  
-- at high pre-strain, increased stiffness reduces the benefit  
-
-This term provides a physically interpretable way to model the experimentally observed rise-then-taper sensitivity trend.
-
-## Compliance Model Options
-
-The script supports two compliance model options:
-
-### `lumped`
-
-A phenomenological strain-dependent effective compliance model:
-
-- useful for simplified tuning  
-- represents membrane stiffness, thickness, geometry, and tensioning in a lumped way  
-
-### `material`
-
-A material-informed compliance surrogate using:
-
-- membrane thickness  
-- effective elastic modulus  
-- effective membrane span  
-
-This option improves physical traceability while still remaining reduced-order in nature.
+- `tolP`  
+  Pressure convergence tolerance for the iterative cavity solve
 
 ## Current Interface and Cavity Assumptions
 
 The current script uses:
 
 - **Interface material:** hygienic latex  
-- **Membrane thickness:** 0.020 in  
-- **Nominal effective modulus:** 1.2e6 Pa  
+- **Membrane/interface thickness:** 0.020 in  
+- **Nominal effective modulus:** 6.0e5 Pa  
 - **Working fluid:** trapped air  
 - **Cavity model:** isothermal ideal gas compression  
-- **Cavity volume:** estimated from a cylindrical + spherical-cap geometry per sensing side  
-
-## Files
-
-- `StrainModel.m`  
-  Main MATLAB script implementing the reduced-order model, parameter definitions, cavity-pressure solver, summary printouts, and plotting routines.
+- **Interface representation:** circular plate-style reduced-order approximation  
+- **Cavity volume:** estimated from a cylindrical plus spherical-cap geometry per sensing side  
 
 ## Experimental Reference Points
 
-The script includes experimental summary values for:
+The script includes experimental calibration summary values for:
 
 - engineering strain  
 - normalized sensitivity  
-- approximate error bars  
+- approximate uncertainty / error bars  
 
-These are used for direct visual comparison between the reduced-order model and calibration-derived sensitivity data.
+These are used for direct visual comparison with model predictions and for reporting:
+
+- residuals  
+- RMSE  
+- weighted RMSE  
+
+## Sensitivity Analysis
+
+The current version also includes parameter sensitivity studies to assess robustness of the reduced-order formulation.
+
+Implemented sweeps include:
+
+- `beta_geom` sweep  
+- `c1` sweep  
+- `c2` sweep  
+- 2D contour sweep of `beta_geom` versus engineering strain  
+
+These plots help show whether the observed model trend is robust to reasonable parameter variation, rather than being dependent on a single narrowly chosen setting.
+
+## Example Outputs
+
+The script generates:
+
+- baseline normalized sensitivity comparison against experimental data  
+- transmission and embedded geometry diagnostics  
+- iterative cavity volume / plate deflection diagnostics  
+- plate mechanics diagnostics  
+- interface diameter interpolation plot  
+- solver iteration count and convergence flag plots  
+- parameter sensitivity sweep plots for `beta_geom`, `c1`, and `c2`  
+- 2D contour plot of normalized sensitivity over `beta_geom` and strain  
+- error metric plot showing RMSE and WRMSE versus `beta_geom`  
+
+## Files
+
+- `sensor_interface_numerical_model_v10_sensitivity_contour.m`  
+  Main MATLAB script implementing the iterative force-balance model, diagnostics, sensitivity sweeps, and 2D contour analysis
 
 ## Getting Started
 
 Open MATLAB in this repository folder and run:
 
 ```matlab
-StrainModel
+sensor_interface_numerical_model_v10_sensitivity_contour
 ```
 
 The script will:
 
 1. Define experimental strain and sensitivity data  
-2. Evaluate the cavity transmission term and coupling efficiency across a continuous strain range  
-3. Compute normalized sensitivity using  
-   `S_norm = T_cav,norm * eta_cpl`  
-4. Print a comparison table between experimental and modeled values  
-5. Output RMSE and weighted RMSE  
-6. Generate publication-style and diagnostic plots  
+2. Evaluate the baseline force-balance model over a continuous strain range  
+3. Print a comparison table between experimental and modeled values  
+4. Report RMSE and weighted RMSE  
+5. Generate baseline diagnostic plots  
+6. Run 1D parameter sensitivity sweeps  
+7. Generate a 2D `beta_geom` versus strain contour plot  
+8. Save figures to the `results/` folder as both `.png` and `.fig` files  
 
 ## Notes
 
-- The present model is a reduced-order interpretive tool, not a full membrane mechanics solution  
-- The cavity-pressure solution assumes an isothermal air-filled cavity (ideal gas)  
-- The decomposition  
-  `S_norm = T_cav,norm * eta_cpl`  
-  separates:
-  - cavity/compressibility effects  
-  - interface coupling effects  
+- The present model is a reduced-order interpretive tool, not a full nonlinear membrane mechanics solution  
+- The interface mechanics are represented using a plate-style stiffness approximation with strain-dependent modulus  
+- The cavity-pressure solution assumes an isothermal air-filled cavity and ideal-gas compression  
+- Geometry amplification is not imposed as a standalone fit curve; it enters through the embedded area-ratio formulation and the blending parameter `beta_geom`  
+- Sensitivity sweeps are included to assess robustness and physical defensibility of the overall trend  
 
 ## Author
 

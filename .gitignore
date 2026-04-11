@@ -1,0 +1,10 @@
+# Ignore results output folder
+results/
+
+# (Optional but recommended) Ignore all MATLAB generated figures
+*.fig
+*.png
+
+# (Optional) Ignore MATLAB autosave and temp files
+*.asv
+*.m~
