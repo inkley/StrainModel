@@ -1,10 +1,10 @@
-%% sensor_interface_numerical_model_v10_sensitivity_contour.m
+%% sensor_interface_numerical_model_v11.m
 clear; clc; close all;
 
 %% -----------------------------
 % Results folder
 % ------------------------------
-resultsDir = fullfile(pwd, 'results');
+resultsDir = fullfile(pwd, 'results_v11');
 if ~exist(resultsDir, 'dir')
     mkdir(resultsDir);
 end
@@ -12,10 +12,10 @@ end
 %% -----------------------------
 % Experimental data / interface states
 % ------------------------------
-d0 = 21.978; % mm, nominal funnel diameter
+d0 = 21.978; % mm, nominal funnel diameter at zero engineering strain
 
 scaleDiameters_raw = [16.484, 17.582, 18.681, 19.780, 21.978]; % mm
-engStrains_raw     = (d0 - scaleDiameters_raw) ./ d0;         % (-)
+engStrains_raw     = (d0 - scaleDiameters_raw) ./ d0;          % (-)
 
 [engStrains, sortIdx] = sort(engStrains_raw);
 scaleDiameters = scaleDiameters_raw(sortIdx);
@@ -28,6 +28,7 @@ y_err    = [0.093, 0.082, 0.045, 0.042];
 % Plot styling
 % ------------------------------
 modelColor      = [0.00, 0.20, 0.60];
+geomOnlyColor   = [0.10, 0.55, 0.85];
 physColor       = [0.20, 0.55, 0.20];
 bareColor       = [0.35, 0.35, 0.35];
 c75             = [0.00, 0.4470, 0.7410];
@@ -46,9 +47,11 @@ legendFontSize  = 12;
 % ------------------------------
 p = struct();
 
+% Reference / perturbation pressures
 p.P_ref = 101325;   % Pa
-p.dP0   = 5.0;      % Pa
+p.dP0   = 5.0;      % Pa, applied differential perturbation for transmission estimate
 
+% Measured geometry states
 p.d0_mm             = d0;
 p.scaleDiameters_mm = scaleDiameters;
 p.engStrains        = engStrains;
@@ -66,7 +69,7 @@ p.A_forced   = pi * p.r_forced_m^2;
 p.V11 = pi * r^2 * h1;
 p.V22 = pi * h2^2 * r - pi * h2^3/3;
 V_total_mm3 = p.V11 + p.V22;
-p.V00 = V_total_mm3 * 1e-9;
+p.V00 = V_total_mm3 * 1e-9; % m^3
 
 a_plate_ref    = 0.5 * d0 * 1e-3;
 A_plate_ref    = pi * a_plate_ref^2;
@@ -75,11 +78,19 @@ p.geom_raw_ref = p.A_forced / A_plate_ref;
 %% -----------------------------
 % Plate / membrane model
 % ------------------------------
-p.t_plate0 = 0.020 * 0.0254;
+p.t_plate0 = 0.020 * 0.0254;  % m
 p.nu_plate = 0.49;
-p.E_plate0 = 6.0e5;
-p.c1       = 0.9;
-p.c2       = 1.4;
+p.E_plate0 = 6.0e5;           % Pa
+
+% Strain-dependent effective modulus:
+% E_eff(eps) = E0 * (1 + c1*eps + c2*eps^2)
+% c1 = linear stiffening coefficient
+% c2 = quadratic stiffening coefficient
+%
+% These are retained for completeness, but v10 showed low model sensitivity
+% to them over the current strain range. They are therefore held fixed in v11.
+p.c1 = 0.9;
+p.c2 = 1.4;
 
 %% -----------------------------
 % Iterative solver settings
@@ -90,19 +101,16 @@ p.relax   = 0.05;
 p.relax_q = 0.05;
 
 %% -----------------------------
-% Stability / embedding settings
+% Stability / geometry coupling settings
 % ------------------------------
 p.beta_geom       = 0.25;
-p.q_cap           = 50;
-p.dV_cap_fraction = 0.10;
+p.q_cap           = 50;     % Pa
+p.dV_cap_fraction = 0.10;   % max allowed |dV| / V00
 
 %% -----------------------------
 % Sensitivity sweep settings
 % ------------------------------
 beta_geom_sweep = [0.15, 0.25, 0.35];
-c1_sweep        = [0.6, 0.9, 1.2];
-c2_sweep        = [1.0, 1.4, 1.8];
-
 beta_geom_grid  = linspace(0.10, 0.40, 41);
 
 %% -----------------------------
@@ -116,9 +124,11 @@ fprintf('Pressure tolerance: %.3e Pa\n', p.tolP);
 fprintf('Max iterations: %d\n', p.maxIter);
 fprintf('Pressure relaxation factor: %.3f\n', p.relax);
 fprintf('Net-load relaxation factor: %.3f\n', p.relax_q);
-fprintf('Geometry blend factor beta_geom: %.3f\n', p.beta_geom);
+fprintf('Geometry coupling parameter beta_geom: %.3f\n', p.beta_geom);
 fprintf('Net-load cap q_cap: %.3f Pa\n', p.q_cap);
-fprintf('Volume-change cap fraction: %.3f\n\n', p.dV_cap_fraction);
+fprintf('Volume-change cap fraction: %.3f\n', p.dV_cap_fraction);
+fprintf('Linear modulus coefficient c1: %.3f\n', p.c1);
+fprintf('Quadratic modulus coefficient c2: %.3f\n\n', p.c2);
 
 fprintf('Sampling interface diameters (mm): ');
 fprintf('%.3f ', scaleDiameters);
@@ -143,20 +153,25 @@ if abs(T0) < eps
     warning('Zero-strain transmission T0 is near zero. Using eps safeguard for normalization.');
     T0 = eps;
 end
+
 T_cav_norm = T_cav ./ T0;
-S_norm = T_cav_norm;
+S_norm     = T_cav_norm;
+
+% Geometry-only comparison curve
+S_geom_only = G_eff_curve;
 
 %% -----------------------------
 % Print summary at experimental points
 % ------------------------------
 fprintf('\n--- Baseline model summary at experimental strain values ---\n');
-fprintf('   eps      data      model    T_cav,norm   a_plate(mm)  G_geom   G_eff    resid    w_resid\n');
+fprintf('   eps      data      model    geomOnly  T_cav,norm   a_plate(mm)  G_geom   G_eff    resid    w_resid\n');
 
 resid = zeros(size(eps_data));
 wres  = zeros(size(eps_data));
 
 for i = 1:numel(eps_data)
     Si_model = interp1(eps_plot, S_norm,             eps_data(i), 'linear');
+    Si_geom  = interp1(eps_plot, S_geom_only,        eps_data(i), 'linear');
     Ti_cav   = interp1(eps_plot, T_cav_norm,         eps_data(i), 'linear');
     ai_mm    = interp1(eps_plot, 1e3*a_plate_curve,  eps_data(i), 'linear');
     Gi       = interp1(eps_plot, geom_gain_curve,    eps_data(i), 'linear');
@@ -165,8 +180,8 @@ for i = 1:numel(eps_data)
     resid(i) = Si_model - y_data(i);
     wres(i)  = resid(i) / y_err(i);
 
-    fprintf('%7.3f   %7.3f   %7.3f   %7.3f   %10.3f  %7.3f  %7.3f   %7.3f   %7.3f\n', ...
-        eps_data(i), y_data(i), Si_model, Ti_cav, ai_mm, Gi, Geffi, resid(i), wres(i));
+    fprintf('%7.3f   %7.3f   %7.3f   %7.3f   %7.3f   %10.3f  %7.3f  %7.3f   %7.3f   %7.3f\n', ...
+        eps_data(i), y_data(i), Si_model, Si_geom, Ti_cav, ai_mm, Gi, Geffi, resid(i), wres(i));
 end
 
 rmse  = sqrt(mean(resid.^2));
@@ -190,7 +205,8 @@ h80 = errorbar(eps_data(3), y_data(3), y_err(3), 's', 'Color', c80, 'MarkerFaceC
 h85 = errorbar(eps_data(2), y_data(2), y_err(2), 's', 'Color', c85, 'MarkerFaceColor', c85, 'MarkerEdgeColor', c85, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'DisplayName', '85%');
 h90 = errorbar(eps_data(1), y_data(1), y_err(1), 's', 'Color', c90, 'MarkerFaceColor', c90, 'MarkerEdgeColor', c90, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'DisplayName', '90%');
 
-hModel = plot(eps_plot, S_norm, '-', 'Color', modelColor, 'LineWidth', modelLineWidth, 'DisplayName', 'Iterative v10 Force-Balance Model');
+hGeomOnly = plot(eps_plot, S_geom_only, '--', 'Color', geomOnlyColor, 'LineWidth', 2.0, 'DisplayName', 'Geometry-Only Gain');
+hModel    = plot(eps_plot, S_norm, '-', 'Color', modelColor, 'LineWidth', modelLineWidth, 'DisplayName', 'Iterative v11 Force-Balance Model');
 
 xlabel('Engineering Strain');
 ylabel('Normalized Sensitivity (-)');
@@ -200,11 +216,11 @@ grid on;
 box on;
 set(gca, 'FontSize', axisFontSize, 'LineWidth', 1.0);
 
-legend([h75, h80, h85, h90, hBareMean, hModel], ...
-       {'75%', '80%', '85%', '90%', 'Bare Port Reference', 'Iterative v10 Force-Balance Model'}, ...
+legend([h75, h80, h85, h90, hBareMean, hGeomOnly, hModel], ...
+       {'75%', '80%', '85%', '90%', 'Bare Port Reference', 'Geometry-Only Gain', 'Iterative v11 Force-Balance Model'}, ...
        'Location', 'northeast', 'FontSize', legendFontSize);
 
-saveCurrentFigure(resultsDir, '01_main_normalized_sensitivity_v10');
+saveCurrentFigure(resultsDir, '01_main_normalized_sensitivity_v11');
 
 %% -----------------------------
 % Diagnostic: transmission and embedded geometry
@@ -223,7 +239,7 @@ legend('T_{cav,norm}(\epsilon)', 'G_{geom}(\epsilon)', 'G_{eff}(\epsilon)', 'S_{
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '02_transmission_and_embedded_geometry_v10');
+saveCurrentFigure(resultsDir, '02_transmission_and_embedded_geometry_v11');
 
 %% -----------------------------
 % Diagnostic: iterative test-load response
@@ -244,7 +260,7 @@ legend('\Delta V_{test}(\epsilon)', 'V_{i,test}(\epsilon)', '|w_{max,test}(\epsi
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '03_test_load_volume_and_deflection_v10');
+saveCurrentFigure(resultsDir, '03_test_load_volume_and_deflection_v11');
 
 %% -----------------------------
 % Diagnostic: plate mechanics and geometry
@@ -265,7 +281,7 @@ legend('E_{eff}(\epsilon)', 'D_{plate}(\epsilon)', 'a_{plate}(\epsilon)', 'Locat
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '04_plate_mechanics_and_geometry_v10');
+saveCurrentFigure(resultsDir, '04_plate_mechanics_and_geometry_v11');
 
 %% -----------------------------
 % Diagnostic: installed interface diameter
@@ -280,7 +296,7 @@ legend('Interpolated D_{plate}(\epsilon)', 'Measured interface states', 'Locatio
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '05_installed_interface_diameter_v10');
+saveCurrentFigure(resultsDir, '05_installed_interface_diameter_v11');
 
 %% -----------------------------
 % Diagnostic: iteration count
@@ -294,7 +310,7 @@ title('Iterative Solver Diagnostics');
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '06_iteration_count_v10');
+saveCurrentFigure(resultsDir, '06_iteration_count_v11');
 
 %% -----------------------------
 % Diagnostic: convergence flag
@@ -308,7 +324,7 @@ ylim([-0.1, 1.1]);
 grid on;
 set(gca, 'FontSize', 14);
 
-saveCurrentFigure(resultsDir, '07_convergence_flag_v10');
+saveCurrentFigure(resultsDir, '07_convergence_flag_v11');
 
 %% -----------------------------
 % Sensitivity sweep: beta_geom
@@ -348,87 +364,7 @@ box on;
 set(gca, 'FontSize', 14);
 legend('Location', 'northwest');
 
-saveCurrentFigure(resultsDir, '08_sensitivity_beta_geom_v10');
-
-%% -----------------------------
-% Sensitivity sweep: c1
-% ------------------------------
-c1_results = zeros(numel(c1_sweep), numel(eps_plot));
-c1_rmse    = zeros(numel(c1_sweep), 1);
-c1_wrmse   = zeros(numel(c1_sweep), 1);
-
-for j = 1:numel(c1_sweep)
-    pSweep = p;
-    pSweep.c1 = c1_sweep(j);
-
-    [S_sweep, ~] = runNormalizedModelResponse(eps_plot, pSweep);
-
-    c1_results(j, :) = S_sweep;
-    [c1_rmse(j), c1_wrmse(j)] = computeModelErrors(eps_plot, S_sweep, eps_data, y_data, y_err);
-end
-
-figure; hold on;
-plot(eps_plot, c1_results(1, :), '-', 'LineWidth', 2.0, 'DisplayName', sprintf('c_1 = %.2f', c1_sweep(1)));
-plot(eps_plot, c1_results(2, :), '-', 'LineWidth', 2.5, 'DisplayName', sprintf('c_1 = %.2f', c1_sweep(2)));
-plot(eps_plot, c1_results(3, :), '-', 'LineWidth', 2.0, 'DisplayName', sprintf('c_1 = %.2f', c1_sweep(3)));
-
-errorbar(eps_data(4), y_data(4), y_err(4), 's', 'Color', c75, 'MarkerFaceColor', c75, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(3), y_data(3), y_err(3), 's', 'Color', c80, 'MarkerFaceColor', c80, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(2), y_data(2), y_err(2), 's', 'Color', c85, 'MarkerFaceColor', c85, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(1), y_data(1), y_err(1), 's', 'Color', c90, 'MarkerFaceColor', c90, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-yline(1.0, '-', 'Color', bareColor, 'LineWidth', 1.6, 'HandleVisibility', 'off');
-
-xlabel('Engineering Strain');
-ylabel('Normalized Sensitivity (-)');
-title('Sensitivity Sweep: c_1');
-xlim([0 0.36]);
-ylim([0.85 1.60]);
-grid on;
-box on;
-set(gca, 'FontSize', 14);
-legend('Location', 'northwest');
-
-saveCurrentFigure(resultsDir, '09_sensitivity_c1_v10');
-
-%% -----------------------------
-% Sensitivity sweep: c2
-% ------------------------------
-c2_results = zeros(numel(c2_sweep), numel(eps_plot));
-c2_rmse    = zeros(numel(c2_sweep), 1);
-c2_wrmse   = zeros(numel(c2_sweep), 1);
-
-for j = 1:numel(c2_sweep)
-    pSweep = p;
-    pSweep.c2 = c2_sweep(j);
-
-    [S_sweep, ~] = runNormalizedModelResponse(eps_plot, pSweep);
-
-    c2_results(j, :) = S_sweep;
-    [c2_rmse(j), c2_wrmse(j)] = computeModelErrors(eps_plot, S_sweep, eps_data, y_data, y_err);
-end
-
-figure; hold on;
-plot(eps_plot, c2_results(1, :), '-', 'LineWidth', 2.0, 'DisplayName', sprintf('c_2 = %.2f', c2_sweep(1)));
-plot(eps_plot, c2_results(2, :), '-', 'LineWidth', 2.5, 'DisplayName', sprintf('c_2 = %.2f', c2_sweep(2)));
-plot(eps_plot, c2_results(3, :), '-', 'LineWidth', 2.0, 'DisplayName', sprintf('c_2 = %.2f', c2_sweep(3)));
-
-errorbar(eps_data(4), y_data(4), y_err(4), 's', 'Color', c75, 'MarkerFaceColor', c75, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(3), y_data(3), y_err(3), 's', 'Color', c80, 'MarkerFaceColor', c80, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(2), y_data(2), y_err(2), 's', 'Color', c85, 'MarkerFaceColor', c85, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-errorbar(eps_data(1), y_data(1), y_err(1), 's', 'Color', c90, 'MarkerFaceColor', c90, 'MarkerSize', markerSize, 'LineWidth', errorLineWidth, 'CapSize', 8, 'HandleVisibility', 'off');
-yline(1.0, '-', 'Color', bareColor, 'LineWidth', 1.6, 'HandleVisibility', 'off');
-
-xlabel('Engineering Strain');
-ylabel('Normalized Sensitivity (-)');
-title('Sensitivity Sweep: c_2');
-xlim([0 0.36]);
-ylim([0.85 1.60]);
-grid on;
-box on;
-set(gca, 'FontSize', 14);
-legend('Location', 'northwest');
-
-saveCurrentFigure(resultsDir, '10_sensitivity_c2_v10');
+saveCurrentFigure(resultsDir, '08_sensitivity_beta_geom_v11');
 
 %% -----------------------------
 % 2D sweep: beta_geom vs strain contour
@@ -457,12 +393,10 @@ cb = colorbar;
 cb.Label.String = 'Normalized Sensitivity, S_{norm} (-)';
 cb.Label.FontSize = 14;
 
-% Baseline beta line
 hBase = plot([eps_plot(1), eps_plot(end)], [p.beta_geom, p.beta_geom], 'k--', ...
     'LineWidth', 2.0, ...
     'DisplayName', sprintf('Baseline \\beta_{geom} = %.2f', p.beta_geom));
 
-% Mark experimental strain locations along the baseline beta value
 for i = 1:numel(eps_data)
     plot(eps_data(i), p.beta_geom, 'wo', ...
         'MarkerFaceColor', 'w', ...
@@ -483,7 +417,7 @@ set(gca, 'FontSize', 14);
 legend(hBase, sprintf('Baseline \\beta_{geom} = %.2f', p.beta_geom), ...
     'Location', 'northwest');
 
-saveCurrentFigure(resultsDir, '11_sensitivity_beta_geom_contour_v10');
+saveCurrentFigure(resultsDir, '09_sensitivity_beta_geom_contour_v11');
 
 %% -----------------------------
 % Diagnostic: beta_geom error metrics
@@ -507,7 +441,7 @@ box on;
 set(gca, 'FontSize', 14);
 legend('RMSE', 'WRMSE', 'Location', 'best');
 
-saveCurrentFigure(resultsDir, '12_beta_geom_error_metrics_v10');
+saveCurrentFigure(resultsDir, '10_beta_geom_error_metrics_v11');
 
 %% -----------------------------
 % Print sensitivity summary
@@ -518,18 +452,6 @@ fprintf('\nBeta_geom sweep:\n');
 for j = 1:numel(beta_geom_sweep)
     fprintf('  beta_geom = %.3f  | RMSE = %.4f | WRMSE = %.4f\n', ...
         beta_geom_sweep(j), beta_rmse(j), beta_wrmse(j));
-end
-
-fprintf('\nc1 sweep:\n');
-for j = 1:numel(c1_sweep)
-    fprintf('  c1 = %.3f         | RMSE = %.4f | WRMSE = %.4f\n', ...
-        c1_sweep(j), c1_rmse(j), c1_wrmse(j));
-end
-
-fprintf('\nc2 sweep:\n');
-for j = 1:numel(c2_sweep)
-    fprintf('  c2 = %.3f         | RMSE = %.4f | WRMSE = %.4f\n', ...
-        c2_sweep(j), c2_rmse(j), c2_wrmse(j));
 end
 
 fprintf('\n2D beta_geom contour sweep:\n');
@@ -576,7 +498,7 @@ function [T_cav, Pi_test_curve, Vi_test_curve, dV_test_curve, Dplate_curve, ...
             Dplate_curve(k), Eeff_curve(k), wmax_test_curve(k), iter_test_curve(k), ...
             a_plate_curve(k), Dplate_geom_curve_mm(k), geom_gain_curve(k), ...
             G_eff_curve(k), converged_curve(k), solverState] = ...
-            evaluateCavityTransmission_v8(epsn, p, solverState);
+            evaluateCavityTransmission_v11(epsn, p, solverState);
     end
 end
 
@@ -608,7 +530,7 @@ end
 
 function [Tcav, Pi_test, Vi_test, dV_test, Dplate, Eeff, wmax_test, iter_test, ...
           a_plate, Dplate_geom_mm, geom_gain, G_eff, converged, solverStateOut] = ...
-          evaluateCavityTransmission_v8(epsn, p, solverStateIn)
+          evaluateCavityTransmission_v11(epsn, p, solverStateIn)
 
     [Dplate, Eeff, a_plate, ~, Dplate_geom_mm] = evaluatePlateStiffness(epsn, p);
 
@@ -617,12 +539,21 @@ function [Tcav, Pi_test, Vi_test, dV_test, Dplate, Eeff, wmax_test, iter_test, .
     geom_gain = geom_raw / p.geom_raw_ref;
     G_eff     = 1 + p.beta_geom * (geom_gain - 1);
 
+    % Forward test solve used for diagnostics and continuation
     Psurf_test = p.P_ref + p.dP0;
     [Pi_test, Vi_test, dV_test, wmax_test, iter_test, converged, solverStateOut] = ...
-        solveCavityPressure_iterative_v8(Psurf_test, epsn, a_plate, geom_gain, p, solverStateIn);
+        solveCavityPressure_iterative_v11(Psurf_test, epsn, a_plate, geom_gain, p, solverStateIn);
 
-    dPsens_plus  = sensorDifferentialResponse_v8(+p.dP0, epsn, a_plate, geom_gain, p, solverStateIn);
-    dPsens_minus = sensorDifferentialResponse_v8(-p.dP0, epsn, a_plate, geom_gain, p, solverStateIn);
+    % Symmetric differential evaluation:
+    % use matched initial states for +dP0 and -dP0 to reduce path-dependent artifacts
+    symmetricState = solverStateIn;
+    if isempty(symmetricState)
+        symmetricState.Pi = p.P_ref;
+        symmetricState.q_net_old = 0.0;
+    end
+
+    dPsens_plus  = sensorDifferentialResponse_v11(+p.dP0, epsn, a_plate, geom_gain, p, symmetricState);
+    dPsens_minus = sensorDifferentialResponse_v11(-p.dP0, epsn, a_plate, geom_gain, p, symmetricState);
 
     Tcav = (dPsens_plus - dPsens_minus) / (2 * p.dP0);
 end
@@ -639,18 +570,22 @@ function [Dplate, Eeff, a_plate, t_plate, D_plate_mm] = evaluatePlateStiffness(e
     Dplate = Eeff * t_plate^3 / (12 * (1 - p.nu_plate^2));
 end
 
-function dPsens = sensorDifferentialResponse_v8(dPsurf, epsn, a_plate, geom_gain, p, solverStateIn)
+function dPsens = sensorDifferentialResponse_v11(dPsurf, epsn, a_plate, geom_gain, p, solverStateIn)
     P3 = p.P_ref + dPsurf / 2;
     P4 = p.P_ref - dPsurf / 2;
 
-    [P1, ~, ~, ~, ~, ~, ~] = solveCavityPressure_iterative_v8(P3, epsn, a_plate, geom_gain, p, solverStateIn);
-    [P2, ~, ~, ~, ~, ~, ~] = solveCavityPressure_iterative_v8(P4, epsn, a_plate, geom_gain, p, solverStateIn);
+    % Use identical initial states for both branches
+    stateA = solverStateIn;
+    stateB = solverStateIn;
+
+    [P1, ~, ~, ~, ~, ~, ~] = solveCavityPressure_iterative_v11(P3, epsn, a_plate, geom_gain, p, stateA);
+    [P2, ~, ~, ~, ~, ~, ~] = solveCavityPressure_iterative_v11(P4, epsn, a_plate, geom_gain, p, stateB);
 
     dPsens = P1 - P2;
 end
 
 function [Pi, Vi, dV, wmax, iter, converged, solverStateOut] = ...
-    solveCavityPressure_iterative_v8(Psurf, epsn, a_plate, geom_gain, p, solverStateIn)
+    solveCavityPressure_iterative_v11(Psurf, epsn, a_plate, geom_gain, p, solverStateIn)
 
     [Dplate, ~, ~, ~, ~] = evaluatePlateStiffness(epsn, p);
 
@@ -665,6 +600,9 @@ function [Pi, Vi, dV, wmax, iter, converged, solverStateOut] = ...
     end
 
     converged = false;
+    Vi = p.V00;
+    dV = 0;
+    wmax = 0;
 
     for iter = 1:p.maxIter
         dPsurf = Psurf - p.P_ref;
@@ -677,7 +615,7 @@ function [Pi, Vi, dV, wmax, iter, converged, solverStateOut] = ...
 
         q_net = (1 - p.relax_q) * q_net_old + p.relax_q * q_net_raw;
 
-        [Vi_new, dV_new, wmax_new] = loadedCavityState_fromDeltaP_v8(q_net, p.V00, a_plate, Dplate, p);
+        [Vi_new, dV_new, wmax_new] = loadedCavityState_fromDeltaP_v11(q_net, p.V00, a_plate, Dplate, p);
 
         Pi_new_raw = p.P_ref * p.V00 / Vi_new;
         Pi_new = (1 - p.relax) * Pi + p.relax * Pi_new_raw;
@@ -696,16 +634,17 @@ function [Pi, Vi, dV, wmax, iter, converged, solverStateOut] = ...
 
         Pi = Pi_new;
         q_net_old = q_net;
+        Vi = Vi_new;
+        dV = dV_new;
+        wmax = wmax_new;
     end
 
-    Vi = Vi_new;
-    dV = dV_new;
-    wmax = wmax_new;
     solverStateOut.Pi = Pi;
     solverStateOut.q_net_old = q_net_old;
 end
 
-function [Vi, dV, wmax] = loadedCavityState_fromDeltaP_v8(DeltaP, V00, a, Dplate, p)
+function [Vi, dV, wmax] = loadedCavityState_fromDeltaP_v11(DeltaP, V00, a, Dplate, p)
+    % Small-deflection circular plate response under uniform load
     wmax = DeltaP * a^4 / (64 * Dplate);
     dV   = DeltaP * pi * a^6 / (192 * Dplate);
 
@@ -719,10 +658,6 @@ end
 function saveCurrentFigure(resultsDir, baseName)
     fig = gcf;
     set(fig, 'PaperPositionMode', 'auto');
-
-    % Save high-resolution PNG
     exportgraphics(fig, fullfile(resultsDir, [baseName, '.png']), 'Resolution', 300);
-
-    % Save editable MATLAB figure
     savefig(fig, fullfile(resultsDir, [baseName, '.fig']));
 end
