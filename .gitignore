@@ -1,10 +1,26 @@
-# Ignore results output folder
-results/
-
-# (Optional but recommended) Ignore all MATLAB generated figures
-*.fig
-*.png
-
-# (Optional) Ignore MATLAB autosave and temp files
+# MATLAB
 *.asv
 *.m~
+*.mex*
+*.mdl
+*.slx
+*.autosave
+/*.fig
+/*.mat
+/*.mexw64
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Dependencies / build
+node_modules/
+vendor/
+
+# Logs
+*.log
