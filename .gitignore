@@ -24,3 +24,7 @@ vendor/
 
 # Logs
 *.log
+
+/result_v18/*.eps
+/result_v18/*.fig
+/result_v18/*.png
