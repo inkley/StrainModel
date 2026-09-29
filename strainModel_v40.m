@@ -1,14 +1,14 @@
 %% strainModel_v40.m -- standalone manuscript model
 % Run this file in MATLAB R2025b (the release used for verification).
 % No CSV, MAT, formatter, or helper files are required. Outputs are written
-% beside this script in results_v40; Figures 7/8 are also exported formatted.
-% This is the frozen v40 presentation model, not its archived exploratory sweeps.
+% beside this script in results_v40; Figures 7–9 are also exported formatted.
+% Manuscript submission update: separate raw transmission and fitted sensitivity.
 % Experimental summaries are embedded below; raw-trial reduction is a separate
-% calibration workflow. Editing a normalization does not change equilibrium.
+% experimental-data reduction workflow. Editing a normalization does not change equilibrium.
 % The 50% thickness-restoration and all-inward redistribution rules are
-% illustrative assumptions, not measured or fitted mechanical properties.
+% prescribed assumptions, not measured or fitted mechanical properties.
 % Each R_bare is conditional on its model, not a separate measured reference.
-% The nominal R_bare is selected; the other two are least-squares level fits.
+% All three R_bare values are conditional least-squares level fits.
 clear; clc;
 root = fileparts(mfilename('fullpath'));
 out = fullfile(root, 'results_v40');
@@ -38,11 +38,11 @@ p.maxIter = 1000;
 p.relax = 0.08;                   % fixed-point numerical check only
 p.solverMode = 'root';
 p.minVolumeFraction = 1e-6;        % numerical guard, inactive in reported states
-cfg.nominalRbare = 0.290;
+% All three reference factors are fitted below.
 cfg.restoredThicknessFraction = 0.5;
 cfg.inwardFraction = 1.0;
 
-%% Embedded experimental summary (frozen calibration rebuild)
+%% Embedded experimental summary (retained hydrostatic tests)
 % Source: calibration_rebuild/both_good/experimental_summary.csv from v39.
 % Means are individual membrane-trial slopes / mean same-day bare slopes.
 % SEM = sample SD of these ratios / sqrt(n); shared-reference uncertainty
@@ -58,10 +58,10 @@ writetable(obs, fullfile(out,'embedded_experimental_summary.csv'));
 %% Build current manuscript outputs and run numerical checks
 buildPresentation(out,p,cfg,obs);
 runSolverAudit(out,p,cfg);
-fprintf('\nv40 complete. Results: %s\nFormatted Figures 7/8: %s\n',out,fullfile(out,'formatted'));
+fprintf('\nv40 complete. Results: %s\nFormatted Figures 7–9: %s\n',out,fullfile(out,'formatted'));
 
 function buildPresentation(out,p,cfg,obs)
-% Single-panel, three-case comparison. The supplied state solver sets the
+% Three-case transmission and sensitivity figures. The state solver sets the
 % explicitly assumed clamp geometry; only normalization factors are fitted.
 scales=[90;85;80;75];[ok,j]=ismember(scales,obs.scale);assert(all(ok));obs=obs(j,:);
 en=[.111;.176;.250;.333];
@@ -87,11 +87,6 @@ for k=1:3
  rg=linspace(.01,1,9901);L=sum((a./rg-target).^2,1);
  assert(sum((a*scale-target).^2)<=min(L)+1e-11);
  leastSquaresR=R(k);
- if k==1 && isfield(cfg,'nominalRbare')
-  R(k)=cfg.nominalRbare;assert(R(k)>0 && R(k)<=1);
-  objective="Illustrative placement below 85% mean";
-  assert(md(2,k)/R(k)<y(2));
- end
  fitRows(k,:)={names(k),objective,R(k),leastSquaresR,Rw(k),sqrt(mean((a/R(k)-target).^2)),md(2,k)/R(k)-md(4,k)/R(k)};
 end
 fits=cell2table(fitRows,'VariableNames',{'case_name','objective','R_bare_used','R_bare_unweighted_fit','R_bare_SEM_weighted','fit_subset_RMSE','predicted_85_to_75_drop'});
@@ -108,22 +103,36 @@ for k=1:3
 end
 h(4)=errorbar(ax,eff(j),y,sem,'ko','MarkerFaceColor','k','MarkerSize',8,'LineStyle','none','LineWidth',1.6,'CapSize',9);
 h(5)=yline(ax,1,':','Color',[.4 .4 .4],'LineWidth',1.4);
-xlabel(ax,'Effective engineering strain, \epsilon_{eff} (-)');ylabel(ax,'Bare-port-normalized response (-)');
+xlabel(ax,'Effective engineering strain, \epsilon_{eff} (-)');ylabel(ax,'Bare-port-normalized sensitivity (-)');
 xlim(ax,[0 eff(end)]);
-% Include full fitted curves at zero rather than silently clipping them.
-normalized=raw./R; vals=[normalized(:);y+sem]; upper=ceil(max(vals)*10)/10;
-% Explicit lower limit from normalized response matrix (column order).
-ylim(ax,[max(0,floor(min([normalized(:);y-sem])*10)/10-.1),upper+.05]);
+% Requested viewing window; full curves remain in saved tables.
+ylim(ax,[0.8 1.6]);
 set(ax,'FontSize',13,'LineWidth',1.2,'Box','on','TickDir','in','XGrid','on','YGrid','on','GridAlpha',.15);
-title(ax,'Tension-Model Cases and Experimental Response','FontSize',18,'FontWeight','bold');
+title(ax,'Predicted and Measured Sensitivity','FontSize',18,'FontWeight','bold');
 labels={sprintf('Full nominal-strain tension; R_{bare} = %.3f',R(1)),sprintf('Effective-strain tension (volume-conserving); R_{bare} = %.3f',R(2)),sprintf('Locally relaxed + deformation-induced tension; R_{bare} = %.3f',R(3)),'Experiment (bare-port normalized, mean \pm SEM)','Bare-port reference'};
 lg=legend(ax,h,labels,'NumColumns',2,'Location','southoutside','FontSize',10,'Interpreter','tex');lg.Position=[.10 .065 .87 .12];
-savefig(f,fullfile(out,'fig08_model_experiment_comparison.fig'));
-exportgraphics(f,fullfile(out,'fig08_model_experiment_comparison.png'),'Resolution',180);
-exportgraphics(f,fullfile(out,'fig08_model_experiment_comparison.pdf'),'ContentType','vector');
-exportgraphics(f,fullfile(out,'fig08_model_experiment_comparison.eps'),'ContentType','vector');
+savefig(f,fullfile(out,'fig09_fitted_sensitivity_comparison.fig'));
+exportgraphics(f,fullfile(out,'fig09_fitted_sensitivity_comparison.png'),'Resolution',180);
+exportgraphics(f,fullfile(out,'fig09_fitted_sensitivity_comparison.pdf'),'ContentType','vector');
+exportgraphics(f,fullfile(out,'fig09_fitted_sensitivity_comparison.eps'),'ContentType','vector');
 close(f);
-formatModelFigure(fullfile(out,'fig08_model_experiment_comparison.fig'),fullfile(out,'formatted','fig08_model_experiment_comparison'),true);
+formatModelFigure(fullfile(out,'fig09_fitted_sensitivity_comparison.fig'),fullfile(out,'formatted','fig09_fitted_sensitivity_comparison'),true);
+% Single-column comparison on the raw pressure-transmission scale, without fitted reference scaling.
+f=figure('Visible','off','Theme','light','Color','w','Position',[100 100 880 650]);
+ax=axes(f,'Position',[.16 .17 .80 .72]);hold(ax,'on');
+h=gobjects(1,3);
+for k=1:3
+ h(k)=plot(ax,eff,raw(:,k),'Color',colors(k,:),'LineWidth',2.2);
+end
+xlabel(ax,'Effective engineering strain, \epsilon_{eff} (-)');
+ylabel(ax,'Pressure transmission, R_{cav} (-)');
+title(ax,'Model Pressure Transmission');
+xlim(ax,[0 eff(end)]);ylim(ax,[0 1]);
+legend(ax,h,{'Full nominal-strain tension','Effective-strain tension','Locally relaxed nonlinear'},'Location','southwest');
+set(ax,'FontSize',13,'Box','on','XGrid','on','YGrid','on');
+base=fullfile(out,'fig08_model_pressure_transmission');
+savefig(f,[base '.fig']);close(f);
+formatModelFigure([base '.fig'],fullfile(out,'formatted','fig08_model_pressure_transmission'),false);
 % Matched energy output for the same center state, independent of R_bare.
 writetable(table(strainGrid,eff,energy(:,1),energy(:,2),energy(:,3),'VariableNames',{'nominal_strain','effective_strain','U_low_uJ','U_hydrostatic_uJ','U_high_uJ'}),fullfile(out,'champion_energy.csv'));
 f=figure('Visible','off','Theme','light','Color','w');hold on;
@@ -132,7 +141,7 @@ legend('Low side','Hydrostatic','High side','Location','best');title('Energy dia
 savefig(f,fullfile(out,'champion_energy.fig'));exportgraphics(f,fullfile(out,'champion_energy.png'),'Resolution',180);close(f);
 exportPotentialEnergyVsTension(out,M,energy);
 save(fullfile(out,'champion_workspace.mat'),'p','cfg','fits','curves','points','M','energy');
-fid=fopen(fullfile(out,'champion_validation.txt'),'w');fprintf(fid,'All dense-strainGrid states converged, passive raw response, volume error <1e-12.\nEffective coordinate starts at zero and is strictly increasing.\nExact experimental states included in solve. Least-squares optima checked against grid; nominal display normalization is a separate illustrative setting.\nGeometry assumption is not calibrated. SEM-weighted alternatives reported without confidence intervals.\n');fclose(fid);
+fid=fopen(fullfile(out,'champion_validation.txt'),'w');fprintf(fid,'All dense-strainGrid states converged, raw pressure transmission between zero and one, volume error <1e-12.\nEffective coordinate starts at zero and is strictly increasing.\nExact experimental states included in solve. Least-squares optima checked against grid; all displayed normalizations use the stated least-squares objectives.\nGeometry assumption is not calibrated. SEM-weighted alternatives reported without confidence intervals.\n');fclose(fid);
 disp(fits);disp(points);
 end
 
@@ -324,7 +333,7 @@ end
 function [Pi, Vi, dV, wmax, iter, converged, solverStateOut, dV_raw, q_last] = solveCavityPressure_root(Psurf, a_plate, Dplate, Tpre_eff, p, ~)
     residual = @(Pi_trial) cavityPressureResidual(Pi_trial, Psurf, a_plate, Dplate, Tpre_eff, p);
 
-    % For the current sign convention, Pi is physically between the trapped-
+    % For the current sign convention, Pi is physically between the initial
     % gas fill pressure and the applied external surface pressure.
     % Bisection is intentionally used instead of fzero so iteration count is
     % deterministic and convergence behavior is easy to audit.
@@ -479,7 +488,7 @@ function runSolverAudit(out,p,cfg)
 end
 
 function formatModelFigure(inputFig,outputBase,isComparison)
-% Embedded Figure 7/8 subset of formatCalibrationFigure.m (v39 styling).
+% Embedded Figure 7-9 subset of formatCalibrationFigure.m (v39 styling).
     fig=openfig(inputFig,'invisible');
     cleanup=onCleanup(@() close(fig));
     folder=fileparts(outputBase);
@@ -511,7 +520,7 @@ function formatModelFigure(inputFig,outputBase,isComparison)
             leg.Location='southoutside';leg.NumColumns=2;
             a.Units='normalized';a.Position=[.105 .25 .875 .65];
         else
-            leg.Location='southeast';
+            if contains(inputFig,'pressure_transmission'),leg.Location='southwest';else,leg.Location='southeast';end
         end
     end
     drawnow;

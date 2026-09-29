@@ -6,7 +6,7 @@ MATLAB model for strain-dependent pressure transmission through the membrane-cov
 
 The current implementation is `strainModel_v40.m`.
 
-Version 40 is a standalone cleanup of the v39 manuscript model. It embeds the experimental summaries, numerical solvers, figure formatting, and solver checks in one file. It requires no other project files.
+Version 40 is a standalone manuscript model, updated for the submission figures and fitted comparisons. It embeds the experimental summaries, numerical solvers, figure formatting, and solver checks in one file. It requires no other project files.
 
 The model evaluates how membrane installation, bending, retained tension, deformation-induced tension, and air compression affect differential-pressure transmission. Its purpose is to examine observed trends and the consequences of uncertain installation conditions.
 
@@ -43,7 +43,7 @@ Primary parameters are:
 | Initial cavity volume, per side | Approximately 691 mm³ |
 | Initial absolute gas pressure | 101325 Pa |
 | Assumed water density | 1000 kg/m³ |
-| Calibration depth | 0.3048 m |
+| Test depth | 0.3048 m |
 | Total applied pressure difference | 800 Pa |
 | Pressure offsets about hydrostatic loading | ±400 Pa |
 
@@ -54,12 +54,12 @@ Air compression is quasi-static and isothermal. Additional tubing, sensor, and f
 The script compares three cases:
 
 1. **Full nominal-strain tension:** retains the installed tension calculated from nominal installation strain.
-2. **Effective-strain tension, volume-conserving:** calculates center thickness using an illustrative clamping rule, then infers an equivalent strain and retained tension.
+2. **Effective-strain tension, volume-conserving:** calculates center thickness using a prescribed clamping rule, then infers an equivalent strain and retained tension.
 3. **Locally relaxed nonlinear response:** removes retained installation tension while preserving bending and deformation-induced stretching resistance.
 
 The nominal and locally relaxed cases retain the Poisson-ratio-based thickness relation used in v39. The effective-strain case uses the volume-conservation mapping below.
 
-### Illustrative Clamping Rule
+### Prescribed Clamping Rule
 
 The effective-strain case assumes incompressible installation stretching and complete inward redistribution of material displaced beneath the washers:
 
@@ -97,7 +97,7 @@ The normalized analysis contains 26 membrane trials. Thirteen bare-port trials p
 
 SEMs describe variation among normalized trial values. Uncertainty in the estimated same-day reference means is not separately propagated.
 
-Version 40 reproduces the model comparison from these embedded summaries. It does not reprocess raw calibration recordings or regenerate manuscript Figures 5–6.
+Version 40 reproduces the model comparison from these embedded summaries. It does not reprocess raw hydrostatic-test recordings or regenerate manuscript Figures 5–6.
 
 ## Bare-Port Normalization
 
@@ -109,27 +109,27 @@ R_relative = R_cavity / R_bare
 
 The displayed cases use separate conditional reference factors:
 
-| Case | R_bare | Selection method |
+| Case | R_bare | Fit objective |
 |---|---:|---|
-| Full nominal-strain tension | 0.290 | Selected to place the prediction slightly below the measured 85% mean |
+| Full nominal-strain tension | Approximately 0.264 | Unweighted least-squares fit to response levels at 85%, 80%, and 75% |
 | Effective-strain tension | Approximately 0.364 | Unweighted least-squares fit to response levels at 85%, 80%, and 75% |
 | Locally relaxed nonlinear response | Approximately 0.727 | Unweighted least-squares fit to response levels at all four scales |
 
-The nominal value is not the least-squares optimum or a rigorous lower bound. Its least-squares alternative is retained in the fit summary.
+All three displayed reference factors are fitted. The earlier selected nominal value of 0.290 is no longer used.
 
-These factors are alternatives conditional on each model, not three measured properties of the same bare-port pathway. Fitted agreement is calibration, not independent model validation.
+These factors are alternatives conditional on each model, not three measured properties of the same bare-port pathway. Agreement with the fitted data does not provide independent model validation.
 
 Changing `R_bare` rescales the normalized response and its slope. It does not change membrane equilibrium, raw transmission, or structural energy.
 
-Inverse-SEM-squared weighted fits are also reported for comparison. They do not establish confidence intervals because shared-reference correlations are not included.
+Inverse-SEM-squared weighted fits are also reported for comparison: approximately 0.257, 0.356, and 0.733, respectively. They do not establish confidence intervals because shared-reference correlations are not included.
 
 ## Interpretation
 
-All three cases predict passive raw pressure transmission.
+None of the three cases predicts amplification of the applied pressure difference.
 
-The retained-tension cases capture the direction of the measured postpeak decrease, but predict a larger decrease than observed. The locally relaxed case predicts an increasing response. None reproduces the apparent intermediate-strain maximum.
+The retained-tension cases capture the direction of the measured postpeak decrease, but predict a larger decrease than observed. The locally relaxed case predicts an increasing response. The models do not capture the apparent intermediate-strain maximum.
 
-The selected and fitted normalizations improve agreement in response magnitude without uniquely identifying the installed membrane state or absolute bare-port transmission.
+The fitted normalizations improve agreement in response magnitude without uniquely identifying the installed membrane state or absolute bare-port transmission.
 
 ## Potential-Energy Calculation
 
@@ -150,10 +150,14 @@ results_v40/
         fig07_potential_energy_vs_tension.png
         fig07_potential_energy_vs_tension.pdf
         fig07_potential_energy_vs_tension.eps
-        fig08_model_experiment_comparison.fig
-        fig08_model_experiment_comparison.png
-        fig08_model_experiment_comparison.pdf
-        fig08_model_experiment_comparison.eps
+        fig08_model_pressure_transmission.fig
+        fig08_model_pressure_transmission.png
+        fig08_model_pressure_transmission.pdf
+        fig08_model_pressure_transmission.eps
+        fig09_fitted_sensitivity_comparison.fig
+        fig09_fitted_sensitivity_comparison.png
+        fig09_fitted_sensitivity_comparison.pdf
+        fig09_fitted_sensitivity_comparison.eps
 
     champion_curves.csv
     champion_geometry.csv
@@ -167,7 +171,9 @@ results_v40/
     solver_validation.txt
 ```
 
-Unformatted source figures and an energy-versus-strain diagnostic are also generated.
+Figure 8 presents raw pressure transmission without experimental markers or fitted reference scaling. Figure 9 presents fitted bare-port-normalized sensitivity with experimental means and SEM, with the displayed y-axis restricted to 0.8–1.6. Full curves remain available in the CSV outputs.
+
+Source figures and an energy-versus-strain diagnostic are also generated.
 
 The `champion_*` table names are retained for continuity with v39. The formatted outputs include editable MATLAB figures, 600-dpi PNGs, and vector PDF/EPS files.
 
@@ -176,7 +182,7 @@ The `champion_*` table names are retained for continuity with v39. The formatted
 Each run checks:
 
 - Convergence across the 243-state strain grid.
-- Finite, passive raw pressure transmission.
+- Finite raw pressure transmission between zero and one.
 - Volume conservation under the prescribed clamping rule.
 - A strictly increasing effective-strain coordinate beginning at zero.
 - Inclusion of the exact experimental installation states.
@@ -193,15 +199,15 @@ The bisection solver ignores the supplied starting pressure. Identical direct an
 
 ## Version 40 Verification
 
-Version 40 was tested in an isolated folder containing only `strainModel_v40.m`, with MATLAB's path reset before execution.
+The submission update was tested with MATLAB's path reset before execution; all model functions and experimental summaries are embedded in the script.
 
 Verification confirmed:
 
 - Zero MATLAB Code Analyzer messages, without warning suppressions.
 - Successful standalone execution.
-- Exact agreement with the saved v39 numerical tables.
+- Agreement with the manuscript's rounded fitted factors and experimental-state predictions.
 - Successful completion of all 30 solver comparisons.
-- Correctly rendered formatted Figures 7–8.
+- Correctly rendered formatted Figures 7–9.
 
 Release verification was performed separately from the model run. The verification records are not required to execute the standalone script and are not regenerated by it.
 
