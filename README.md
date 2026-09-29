@@ -1,30 +1,60 @@
 # StrainModel
 
-MATLAB model for strain-dependent pressure transmission through the membrane-covered air cavities of a hydrodynamic sensor module.
+MATLAB tools for studying strain-dependent pressure transmission through the membrane-covered air cavities of a hydrodynamic sensor module.
 
-## Current Version
+The repository contains two workflows:
 
-The current implementation is `strainModel_v40.m`.
+| Workflow | Purpose |
+|---|---|
+| `strainModel_v40.m` | Evaluate membrane–cavity models and generate manuscript Figures 7–9. |
+| `hydrostatic_testing/hydrostatic_testing_v19.m` | Reduce experimental recordings and generate manuscript Figures 5–6. |
 
-Version 40 is a standalone manuscript model, updated for the submission figures and fitted comparisons. It embeds the experimental summaries, numerical solvers, figure formatting, and solver checks in one file. It requires no other project files.
+The model runs independently using embedded experimental summaries. Experimental reduction requires the raw recordings and trial-register workbook.
 
-The model evaluates how membrane installation, bending, retained tension, deformation-induced tension, and air compression affect differential-pressure transmission. Its purpose is to examine observed trends and the consequences of uncertain installation conditions.
-
-## Requirements and Running
+## Requirements
 
 Tested with MATLAB R2025b.
 
-Copy `strainModel_v40.m` into a writable directory, open MATLAB in that directory, and run:
+The model script includes its numerical solvers and figure-formatting functions. No additional project files are required to run it.
+
+The hydrostatic workflow uses the helper functions in `hydrostatic_testing/`. Keep experimental recordings outside the repository.
+
+## Running the Model
+
+Open MATLAB in the repository directory and run:
 
 ```matlab
 strainModel_v40
 ```
 
-Alternatively, open the script in the MATLAB Editor and click **Run**.
+Alternatively, open `strainModel_v40.m` in the MATLAB Editor and click **Run**.
 
-Outputs are written to `results_v40` beside the script. Re-running replaces the generated files in that folder.
+Outputs are written to `results_v40` beside the script. Re-running overwrites matching output files. Save any results you want to retain before another run.
 
-There are no run modes or external formatter dependencies. Earlier exploratory sweeps remain in the previous model versions.
+A successful run reaches `v40 complete` without an assertion failure.
+
+## Running the Experimental Reduction
+
+From the repository root:
+
+```matlab
+addpath('hydrostatic_testing');
+
+dataRoot = '/absolute/path/to/1 Sensor Module v1';
+
+% Inspect workbook selection without loading recordings.
+hydrostatic_testing_v19(dataRoot, Mode="audit");
+
+% Reduce recordings, verify manuscript values, and generate Figures 5–6.
+hydrostatic_testing_v19(dataRoot);
+
+% Redraw figures from existing output tables.
+hydrostatic_testing_v19(Mode="render");
+```
+
+Alternatively, set the `SENSOR_TRIAL_DATA_ROOT` environment variable and call `hydrostatic_testing_v19` without a data-path argument.
+
+See [the hydrostatic testing README](hydrostatic_testing/README.md) for data layout, workbook options, trial-selection rules, and output definitions.
 
 ## Physical Model
 
@@ -32,7 +62,7 @@ Each sensing pathway consists of a membrane coupled to a sealed air cavity. Exte
 
 The two cavities are solved independently. Their internal pressure difference gives the predicted differential sensor response.
 
-Primary parameters are:
+### Default Parameters
 
 | Parameter | Value |
 |---|---:|
@@ -42,22 +72,42 @@ Primary parameters are:
 | Poisson's ratio | 0.49 |
 | Initial cavity volume, per side | Approximately 691 mm³ |
 | Initial absolute gas pressure | 101325 Pa |
-| Assumed water density | 1000 kg/m³ |
+| Water density | 1000 kg/m³ |
 | Test depth | 0.3048 m |
 | Total applied pressure difference | 800 Pa |
 | Pressure offsets about hydrostatic loading | ±400 Pa |
 
 Air compression is quasi-static and isothermal. Additional tubing, sensor, and fitting volumes were not measured and are not included in the cavity volume.
 
+Internal calculations use SI units. Exported tables identify quantities expressed in other units, including thickness in millimeters and structural energy in microjoules.
+
 ## Model Cases
 
-The script compares three cases:
+The script evaluates three cases:
 
-1. **Full nominal-strain tension:** retains the installed tension calculated from nominal installation strain.
-2. **Effective-strain tension, volume-conserving:** calculates center thickness using a prescribed clamping rule, then infers an equivalent strain and retained tension.
-3. **Locally relaxed nonlinear response:** removes retained installation tension while preserving bending and deformation-induced stretching resistance.
+1. **Full nominal-strain tension:** retains installation tension calculated from nominal installation strain.
+2. **Effective-strain tension:** calculates center thickness using a volume-conserving clamping rule, then infers an equivalent strain and retained tension.
+3. **Locally relaxed nonlinear response:** removes installation-induced tension while retaining resistance from bending and deformation-induced stretching.
 
-The nominal and locally relaxed cases retain the Poisson-ratio-based thickness relation used in v39. The effective-strain case uses the volume-conservation mapping below.
+The full nominal-strain and locally relaxed cases use a Poisson-ratio-based installed-thickness relation. The effective-strain case uses the mapping below.
+
+### Installation Strain
+
+Nominal engineering strain is defined as:
+
+```text
+epsilon_nom = (Dinst - Dcut) / Dcut
+```
+
+Here, `Dcut` is the unstretched membrane diameter and `Dinst` is the installed diameter.
+
+The experimental model states use the manuscript's rounded nominal strains:
+
+```text
+0.111, 0.176, 0.250, 0.333
+```
+
+Replacing these values with exact diameter-ratio strains changes the model inputs.
 
 ### Prescribed Clamping Rule
 
@@ -76,72 +126,82 @@ The rule restores half the thickness lost during installation. This fraction is 
 
 Across the four experimental installation states, the implied washer-region thickness reduction is approximately 3.9–13.0% relative to the stretched thickness.
 
-Complete inward redistribution is also an assumption. Outward material displacement would reduce center thickening for a given washer compression.
+Complete inward redistribution is also an assumption. Outward displacement would reduce center thickening for a given washer compression.
 
-The effective strain is an inferred model coordinate, not a measured local strain. Converting that coordinate into retained tension is a separate mechanical approximation. All three cases are plotted against the same effective-strain coordinate for comparison.
+Effective strain is an inferred model coordinate, not a measured local strain. Converting it into retained tension requires a separate mechanical approximation. All three cases are plotted against the same effective-strain coordinate.
 
-## Experimental Data
+## Experimental Sensitivities
 
-The script embeds the retained experimental means, SEMs, and trial counts at their archived precision.
+The model embeds experimental means, standard errors, and trial counts at full numerical precision. Rounded values are:
 
-| Interface scale | Nominal strain | Inferred effective strain | Response-plot trials | Normalized trials | Mean normalized sensitivity ± SEM |
+| Interface scale | Nominal strain | Effective strain | Response-plot trials | Normalized trials | Mean normalized sensitivity ± SEM |
 |---|---:|---:|---:|---:|---:|
 | 90% | 0.111 | 0.05113 | 11 | 10 | 1.152 ± 0.085 |
 | 85% | 0.176 | 0.07736 | 6 | 6 | 1.327 ± 0.082 |
 | 80% | 0.250 | 0.10432 | 6 | 3 | 1.270 ± 0.045 |
 | 75% | 0.333 | 0.13127 | 10 | 7 | 1.225 ± 0.042 |
 
-Experimental sensitivity is the magnitude of each trial's fitted voltage–pressure slope, divided by the mean sensitivity of retained bare-port trials from the same day.
+Trial sensitivity is the magnitude of the fitted voltage–pressure slope. Each sensitivity is divided by the mean sensitivity of retained bare-port trials measured on the same calendar day.
 
-The normalized analysis contains 26 membrane trials. Thirteen bare-port trials provide their same-day references. The response plots contain 33 membrane trials and 17 bare-port trials.
+The response plots contain 33 membrane trials and 17 bare-port trials. The normalized analysis contains 26 membrane trials, with same-day references provided by 13 bare-port trials.
 
-SEMs describe variation among normalized trial values. Uncertainty in the estimated same-day reference means is not separately propagated.
+SEM is the sample standard deviation of the normalized trial sensitivities divided by the square root of the number of included trials. Uncertainty and correlations associated with shared reference means are not separately propagated.
 
-Version 40 reproduces the model comparison from these embedded summaries. It does not reprocess raw hydrostatic-test recordings or regenerate manuscript Figures 5–6.
+### Relationship Between the Workflows
+
+The hydrostatic workflow exports:
+
+```text
+hydrostatic_testing/results/both_good/experimental_summary.csv
+```
+
+The model reads its experimental values from the embedded `obs` table. It does not automatically import this CSV.
+
+Before updating `obs`, compare interface scales, trial counts, means, and SEM with the experimental output. Investigate discrepancies before rerunning the model fits.
+
+Figures 5–6 use between-trial SD of recording mean voltages. Figure 9 uses SEM of normalized trial sensitivities. The configuration-level fits drawn in Figure 6 do not determine Figure 9's experimental values.
 
 ## Bare-Port Normalization
 
-Raw pressure transmission is normalized as:
+Predicted pressure transmission is normalized as:
 
 ```text
 R_relative = R_cavity / R_bare
 ```
 
-The displayed cases use separate conditional reference factors:
+Each model case has a separately fitted reference factor:
 
 | Case | R_bare | Fit objective |
 |---|---:|---|
-| Full nominal-strain tension | Approximately 0.264 | Unweighted least-squares fit to response levels at 85%, 80%, and 75% |
-| Effective-strain tension | Approximately 0.364 | Unweighted least-squares fit to response levels at 85%, 80%, and 75% |
-| Locally relaxed nonlinear response | Approximately 0.727 | Unweighted least-squares fit to response levels at all four scales |
+| Full nominal-strain tension | Approximately 0.264 | Unweighted least squares at 85%, 80%, and 75% |
+| Effective-strain tension | Approximately 0.364 | Unweighted least squares at 85%, 80%, and 75% |
+| Locally relaxed nonlinear response | Approximately 0.727 | Unweighted least squares at all four scales |
 
-All three displayed reference factors are fitted. The earlier selected nominal value of 0.290 is no longer used.
+The objectives fit sensitivity levels rather than slopes alone.
 
-These factors are alternatives conditional on each model, not three measured properties of the same bare-port pathway. Agreement with the fitted data does not provide independent model validation.
+These factors are conditional on their respective models. They are not three independently measured properties of the bare-port pathway. Agreement with the data used for fitting does not provide independent model validation.
 
-Changing `R_bare` rescales the normalized response and its slope. It does not change membrane equilibrium, raw transmission, or structural energy.
+Changing `R_bare` rescales normalized sensitivity and its slope. It does not change membrane equilibrium, raw pressure transmission, or structural energy.
 
-Inverse-SEM-squared weighted fits are also reported for comparison: approximately 0.257, 0.356, and 0.733, respectively. They do not establish confidence intervals because shared-reference correlations are not included.
+Inverse-SEM-squared weighted fits are also reported. Their factors are approximately 0.257, 0.356, and 0.733, respectively. These fits do not establish confidence intervals because shared-reference correlations are not included.
 
-## Interpretation
-
-None of the three cases predicts amplification of the applied pressure difference.
-
-The retained-tension cases capture the direction of the measured postpeak decrease, but predict a larger decrease than observed. The locally relaxed case predicts an increasing response. The models do not capture the apparent intermediate-strain maximum.
-
-The fitted normalizations improve agreement in response magnitude without uniquely identifying the installed membrane state or absolute bare-port transmission.
-
-## Potential-Energy Calculation
+## Structural Energy
 
 Structural energy is evaluated at the hydrostatic, high-side, and low-side equilibrium states.
 
-This is a separate nonlinear calculation using the thickness and retained tension of the volume-conserving effective-strain case, together with deformation-induced stretching and a displaced-volume coefficient of `C_V = 1/2`.
+This calculation uses the thickness and retained tension of the effective-strain case, together with deformation-induced stretching and a displaced-volume coefficient of:
 
-It is not a calculation of the structural energy of all three transmission cases. Changing the clamping rule can change these energies; changing `R_bare` does not.
+```text
+C_V = 1/2
+```
 
-## Outputs
+The energy calculation is specific to this nonlinear formulation. It does not evaluate the structural energy of all three pressure-transmission cases.
 
-The script creates:
+Changing the clamping rule can change the calculated energies. Changing `R_bare` does not.
+
+## Model Outputs
+
+The script generates:
 
 ```text
 results_v40/
@@ -150,10 +210,12 @@ results_v40/
         fig07_potential_energy_vs_tension.png
         fig07_potential_energy_vs_tension.pdf
         fig07_potential_energy_vs_tension.eps
+
         fig08_model_pressure_transmission.fig
         fig08_model_pressure_transmission.png
         fig08_model_pressure_transmission.pdf
         fig08_model_pressure_transmission.eps
+
         fig09_fitted_sensitivity_comparison.fig
         fig09_fitted_sensitivity_comparison.png
         fig09_fitted_sensitivity_comparison.pdf
@@ -171,58 +233,102 @@ results_v40/
     solver_validation.txt
 ```
 
-Figure 8 presents raw pressure transmission without experimental markers or fitted reference scaling. Figure 9 presents fitted bare-port-normalized sensitivity with experimental means and SEM, with the displayed y-axis restricted to 0.8–1.6. Full curves remain available in the CSV outputs.
+Additional source figures and an energy-versus-strain diagnostic are also generated.
 
-Source figures and an energy-versus-strain diagnostic are also generated.
+Formatted outputs include editable MATLAB figures, 600-dpi PNGs, and vector PDF/EPS files.
 
-The `champion_*` table names are retained for continuity with v39. The formatted outputs include editable MATLAB figures, 600-dpi PNGs, and vector PDF/EPS files.
+### Figure Definitions
 
-## Numerical Checks
+- **Figure 7:** structural energy versus retained tension.
+- **Figure 8:** raw pressure transmission, without fitted reference scaling.
+- **Figure 9:** fitted bare-port-normalized sensitivity with experimental means and SEM.
 
-Each run checks:
+Figure 9 displays sensitivities from 0.8 to 1.6. Full calculated curves remain available in the CSV outputs.
+
+## Numerical Validation
+
+Each model run checks:
 
 - Convergence across the 243-state strain grid.
 - Finite raw pressure transmission between zero and one.
-- Volume conservation under the prescribed clamping rule.
+- Volume conservation under the clamping rule.
 - A strictly increasing effective-strain coordinate beginning at zero.
-- Inclusion of the exact experimental installation states.
-- Agreement between analytical normalization fits and a numerical parameter sweep.
+- Inclusion of the four experimental installation states.
+- Agreement between each unweighted analytical normalization fit and a numerical parameter sweep.
 - Agreement between bisection and under-relaxed fixed-point solutions for the two retained-tension cases.
 
-The solver comparison includes zero strain and the four experimental installation states, each evaluated under hydrostatic and ±400 Pa loading: 30 comparisons in total.
+The solver comparison includes zero strain and the four experimental states under hydrostatic and ±400 Pa loading, giving 30 comparisons.
 
-For the verified default configuration, both solvers converged in all 30 comparisons. Their maximum cavity-pressure difference was approximately `7.88e-5 Pa`.
+For the default configuration, all 30 comparisons converge. The maximum cavity-pressure difference between solvers is approximately `7.88e-5 Pa`, below the `8e-5 Pa` assertion threshold.
 
-The fixed-point solver stops on the change between relaxed iterates, rather than on the equilibrium residual. Its stopping tolerance therefore does not directly bound its difference from bisection.
+### Solver Tolerances and Interpretation
 
-The bisection solver ignores the supplied starting pressure. Identical direct and hydrostatic-start solutions are consequently expected by construction and do not independently establish physical loading-path independence.
+- The retained-tension bisection solver uses a pressure-residual or pressure-bracket tolerance of `1e-5 Pa`.
+- The nonlinear deflection solver stops when the pressure residual is below `1e-5 Pa` or the deflection bracket is below `1e-12 m`.
+- Nonlinear iteration exhaustion returns `converged=false`.
+- A deflection-bracket stopping condition does not directly bound the pressure residual.
+- The fixed-point solver stops on the change between relaxed iterates. Inspect its reported equilibrium residual separately.
+- The bisection solution is independent of the initial pressure estimate by construction. Agreement between direct and hydrostatic-start calculations does not independently establish physical loading-path independence.
+- SEM-weighted fits are calculated analytically but are not checked against the numerical parameter sweep.
+- The nonlinear case is not cross-checked with a second solver.
 
-## Version 40 Verification
+The model uses 1001-point radial integration and a small-argument plate approximation. Default validation does not include a quadrature-refinement study.
 
-The submission update was tested with MATLAB's path reset before execution; all model functions and experimental summaries are embedded in the script.
+## Checking a Run
 
-Verification confirmed:
+After execution:
 
-- Zero MATLAB Code Analyzer messages, without warning suppressions.
-- Successful standalone execution.
-- Agreement with the manuscript's rounded fitted factors and experimental-state predictions.
-- Successful completion of all 30 solver comparisons.
-- Correctly rendered formatted Figures 7–9.
+1. Inspect `champion_validation.txt` and `solver_validation.txt`.
+2. Confirm that `champion_fit_summary.csv` gives the expected rounded reference factors.
+3. Compare `champion_experimental_comparison.csv` with the manuscript values.
+4. Confirm that all 30 solver comparisons pass.
+5. Inspect Figures 7–9 for labels, legends, uncertainty markers, and axis limits.
 
-Release verification was performed separately from the model run. The verification records are not required to execute the standalone script and are not regenerated by it.
+For the experimental workflow:
 
-## Scope and Limitations
+```matlab
+addpath('hydrostatic_testing');
+testExperimentalReduction;
 
-- The model is quasi-static.
-- Dynamic membrane inertia, damping, external fluid inertia, and viscous fluid–structure interactions are excluded.
-- Material relaxation, hysteresis, clamp slip, and other history-dependent behavior are not explicitly modeled.
-- Washer compression, local strain, and retained tension were not measured.
-- The clamping rule and inferred tension require experimental assessment.
-- Bare-port normalization does not constitute a validated capillary-pressure correction.
-- The default numerical checks do not establish physical validity at untested depths or loading conditions.
+reductionDir = fullfile('hydrostatic_testing','results','both_good');
+verifyManuscriptSummary(reductionDir);
+```
 
-Earlier versions retain development history and exploratory diagnostics. They should not be interpreted as the current manuscript formulation.
+Review any skipped tests or diagnostic flags. Numerical checks establish consistency and repeatability within the implemented equations; they do not independently validate the physical assumptions.
+
+## Interpretation and Limitations
+
+None of the three model cases predicts amplification of the applied pressure difference.
+
+The retained-tension cases capture the direction of the measured postpeak decrease but predict a larger decrease than observed. The locally relaxed case predicts an increasing response. The models do not capture the apparent intermediate-strain maximum.
+
+Fitted normalization improves agreement in response magnitude without uniquely identifying membrane installation state or absolute bare-port transmission.
+
+Additional limitations include:
+
+- Quasi-static loading.
+- No explicit membrane inertia, damping, external fluid inertia, or viscous fluid–structure interaction.
+- No explicit material relaxation, hysteresis, clamp slip, or loading-history dependence.
+- Unmeasured washer compression, local strain, and retained tension.
+- A prescribed clamping rule that requires experimental assessment.
+- No validated capillary-pressure correction through bare-port normalization.
+- A nonlinear branch intended for compressive loading with nonnegative deflection and positive cavity volume.
+- Numerical volume floors that do not establish physical validity outside the intended parameter range.
+
+Results at other depths, loading conditions, or material parameters require additional numerical and experimental assessment.
+
+## Data and Repository Practices
+
+Raw recordings are stored separately from the code. Reproducing Figures 5–6 requires access to those recordings and the trial register; the model calculations and Figures 7–9 can run from the embedded summaries.
+
+Keep trial-selection decisions, recording-order checks, diagnostics, and summary tables together when retaining experimental results.
+
+Generated outputs and local configuration are excluded from version control by the repository's Git rules. Custom output locations may require additional exclusions. Git rules do not remove files that are already tracked; inspect the staged file list before committing.
 
 ## Citation
 
-If you use this model, please cite the associated hydrodynamic sensor-module manuscript once its final bibliographic information is available.
+If you use this code, please cite the associated manuscript:
+
+*Modeling and Experimental Validation of a Hydrodynamic Sensor Module for Enhanced Autonomous Underwater Vehicle Perception.*
+
+Add the final journal citation and DOI when available.

@@ -1,0 +1,8 @@
+# Generated experimental tables and local machine configuration
+results/
+local_config.m
+.env
+# Keep raw recordings and registers external
+Trial */
+1 Sensor Module v1/
+SM v1 Test Cases.xlsx
